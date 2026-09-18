@@ -1,0 +1,35 @@
+name: Aplicar correção mobile
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'mobile.css'
+      - '.github/workflows/fix-mobile-layout.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Injetar CSS mobile no index
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          tag='<link rel="stylesheet" href="./mobile.css">'
+          if tag not in s:
+              s=s.replace('</head>', tag+'</head>', 1)
+              p.write_text(s, encoding='utf-8')
+          else:
+              print('CSS mobile já está conectado.')
+          PY
+      - name: Commitar correção
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html mobile.css
+          git diff --cached --quiet || git commit -m 'Corrigir layout responsivo do Pesquisa 2.0'
+          git push
