@@ -44,12 +44,12 @@ const researchers=(role==="admin"||role==="researcher")?(data.researchers||[]).m
 const researcherField=(role==="admin"||role==="researcher")?'<div class="field"><label>Pesquisador responsável *</label><select id="cr"><option value="">Selecione o pesquisador</option>'+researchers+'</select><small class="muted">'+(role==="admin"?"O administrador pode escolher qualquer pesquisador cadastrado.":"Você pode escolher somente pesquisadores do seu setor.")+'</small></div>':"";
 shell('Novo cadastro','Use Sessão, Zona ou Escola para localizar. Depois clique no resultado: os três campos serão preenchidos automaticamente.','<div class="card"><div id="cm"></div><div class="formgrid"><div class="field"><label>Nome da pessoa *</label><input id="cn" placeholder="Nome completo"></div><div class="field"><label>Telefone</label><input id="cp" inputmode="tel" placeholder="Telefone"></div><div class="field"><label>Buscar sessão</label><input id="csBusca" inputmode="text" placeholder="Ex.: 103" oninput="filterSections()"></div><div class="field"><label>Buscar zona</label><input id="cz" placeholder="Ex.: 3" oninput="filterSections()"></div><div class="field"><label>Buscar escola</label><input id="ce" placeholder="Digite parte do nome" oninput="filterSections()"></div><div class="field"><label>Resultado — clique para selecionar a sessão *</label><select id="cs" size="6" onchange="selectSectionOption()">'+opts+'</select><small class="muted">Sessão é obrigatória para cadastrar. Zona e escola são apenas filtros para encontrar a sessão.</small></div><div class="field"><label>Período *</label><select id="ct"><option value="morning">Manhã</option><option value="afternoon">Tarde</option></select></div>'+researcherField+'</div><br><button class="btn primary" onclick="createA()">Cadastrar</button></div>','cadastro');
 filterSections();
+initResearcherSelector();
 }
 function filterSections(){
 const sel=$("cs");if(!sel)return;
 const session=($("csBusca")?.value||"").trim().toLowerCase(),zone=($("cz")?.value||"").trim().toLowerCase(),school=($("ce")?.value||"").trim().toLowerCase();
 [...sel.options].forEach(o=>{const ok=(!session||String(o.dataset.sessao||"").toLowerCase().includes(session))&&(!zone||String(o.dataset.zona||"").toLowerCase().includes(zone))&&(!school||String(o.dataset.escola||"").toLowerCase().includes(school));o.hidden=!ok});
-syncResearchers();
 }
 function selectSectionOption(){
 const sel=$("cs");const o=sel?.selectedOptions?.[0];if(!o)return;
@@ -58,23 +58,20 @@ $("cz").value=o.dataset.zona||"";
 $("ce").value=o.dataset.escola||"";
 filterSections();
 const selected=[...sel.options].find(x=>x.value===o.value);if(selected)selected.hidden=false;
-syncResearchers();
 }
-function syncResearchers(){
+function initResearcherSelector(){
 const st=stateForCadastro(),rs=$("cr");if(!rs)return;
 const current=rs.value;
+[...rs.options].forEach(o=>o.hidden=false);
 if(st.role==="admin"){
-  [...rs.options].forEach(o=>o.hidden=false);
-  if(current&&[...rs.options].some(o=>o.value===current&&!o.hidden))rs.value=current;
+  if(current&&[...rs.options].some(o=>o.value===current))rs.value=current;
   return;
 }
 if(st.role!=="researcher")return;
 const myAccess=st.access?.id||access?.id||"",mine=(st.data.researchers||[]).find(r=>r.access_link_id===myAccess);
-let first="";
-[...rs.options].forEach((o,i)=>{if(i===0)return;const ok=true;o.hidden=!ok;if(!first)first=o.value});
-if(mine&&[...rs.options].some(o=>o.value===mine.id&&!o.hidden))rs.value=mine.id;
-else if(current&&[...rs.options].some(o=>o.value===current&&!o.hidden))rs.value=current;
-else if(first)rs.value=first;
+if(mine&&[...rs.options].some(o=>o.value===mine.id))rs.value=mine.id;
+else if(current&&[...rs.options].some(o=>o.value===current))rs.value=current;
+else if(rs.options.length>1)rs.value=rs.options[1].value;
 }
 function stateForCadastro(){const st=window.p20State?window.p20State():null;return st?{data:st.data,role:st.access?.role||"",access:st.access||null}:{data,role:access?.role||"",access};}
 async function createA(){
