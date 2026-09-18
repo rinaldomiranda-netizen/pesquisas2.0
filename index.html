@@ -37,8 +37,42 @@ document.body.innerHTML='<div class="app"><aside class="side"><div class="brand"
 function installApp(){if(window.parent!==window&&typeof window.parent.__p20Install==="function"){window.parent.__p20Install();return}if(deferredInstallPrompt){deferredInstallPrompt.prompt();deferredInstallPrompt.userChoice.finally(()=>deferredInstallPrompt=null);return}alert("Abra o menu do navegador e escolha “Instalar app” ou “Adicionar à tela de início”.")}
 function render(p){document.querySelector(".side")?.classList.remove("open");if(p==='dashboard')return dashboard();if(p==='cadastro')return cadastro();if(p==='setores')return setores();if(p==='relatorios')return relatorios();if(p==='pesquisadores')return pesquisadores();if(p==='diretoria')return diretoria();if(p==='importar')return importar();if(p==='entrevista')return entrevista()}
 function dashboard(){shell('Dashboard','Visão geral da operação de campo','<div class="grid kpis">'+k('Cadastros',data.assignments.length,'✓')+k('Setores',data.sectors.length,'▦')+k('Escolas',data.locations.length,'⌂')+k('Sessões',data.sections.length,'◉')+'</div><br><div class="grid two"><div class="card"><h2>Pesquisa 2.0</h2><p class="muted">Gestão de pesquisadores, escolas, zonas e sessões.</p><br><div class="actions"><button class="btn primary" onclick="render(\'cadastro\')">＋ Novo cadastro</button><button class="btn" onclick="render(\'setores\')">Abrir setores e sessões</button></div></div><div class="card"><h2>Regra de alocação</h2><p>Máximo de <b>2 pessoas por sessão</b>: uma no período da manhã e uma no período da tarde.</p></div></div>','dashboard')}
-function cadastro(){let opts=(data.sections||[]).map(s=>{let l=data.locations.find(x=>x.id===s.polling_location_id);return '<option value="'+esc(s.id)+'">'+esc(l?.school_name||'')+' — Zona '+esc(l?.zone||s.zone||'')+' — Sessão '+esc(s.section)+'</option>'}).join('');shell('Novo cadastro','Alocação de pessoa em uma sessão','<div class="card"><div id="cm"></div><div class="formgrid"><div class="field"><label>Nome</label><input id="cn"></div><div class="field"><label>Telefone</label><input id="cp" inputmode="tel"></div><div class="field"><label>Sessão</label><select id="cs">'+opts+'</select></div><div class="field"><label>Período</label><select id="ct"><option value="morning">Manhã</option><option value="afternoon">Tarde</option></select></div></div><br><button class="btn primary" onclick="createA()">Cadastrar</button></div>','cadastro')}
-async function createA(){try{await api('create_assignment',{person_name:$("cn").value.trim(),phone:$("cp").value.trim(),section_id:$("cs").value,period:$("ct").value});await load();$("cm").innerHTML='<div class="notice ok">Cadastro realizado com sucesso.</div>'}catch(e){$("cm").innerHTML='<div class="notice err">'+esc(e.message)+'</div>'}}
+function cadastro(){
+const sections=data.sections||[],role=access?.role||"admin";
+const opts=sections.map(s=>{const l=data.locations.find(x=>x.id===s.polling_location_id);return '<option value="'+esc(s.id)+'" data-zona="'+esc(l?.zone||s.zone||'')+'" data-escola="'+esc(l?.school_name||'')+'" data-sessao="'+esc(s.section)+'">'+esc(s.section)+' — Zona '+esc(l?.zone||s.zone||'')+' — '+esc(l?.school_name||'')+'</option>'}).join('');
+const researchers=role==="admin"?(data.researchers||[]).map(r=>'<option value="'+esc(r.id)+'" data-sector="'+esc(r.sector_id||'')+'">'+esc(r.full_name)+' — '+esc(data.sectors.find(s=>s.id===r.sector_id)?.name||'')+'</option>').join(""):"";
+const researcherField=role==="admin"?'<div class="field"><label>Pesquisador responsável *</label><select id="cr"><option value="">Selecione o pesquisador</option>'+researchers+'</select><small class="muted">Para o administrador, selecione quem ficará responsável pelo cadastro.</small></div>':"";
+shell('Novo cadastro','Cadastre uma pessoa na sessão desejada. Sessão é obrigatória; zona e escola ajudam a localizar.','<div class="card"><div id="cm"></div><div class="formgrid"><div class="field"><label>Nome da pessoa *</label><input id="cn"></div><div class="field"><label>Telefone</label><input id="cp" inputmode="tel"></div><div class="field"><label>Sessão *</label><input id="csBusca" inputmode="text" placeholder="Digite o número da sessão" oninput="filterSections()"><select id="cs" size="5" style="margin-top:8px" onchange="syncResearchers()">'+opts+'</select><small class="muted">A sessão é obrigatória. Use zona e escola para refinar a busca.</small></div><div class="field"><label>Zona (opcional)</label><input id="cz" placeholder="Digite a zona" oninput="filterSections()"></div><div class="field"><label>Escola (opcional)</label><input id="ce" placeholder="Digite parte do nome da escola" oninput="filterSections()"></div><div class="field"><label>Período *</label><select id="ct"><option value="morning">Manhã</option><option value="afternoon">Tarde</option></select></div>'+researcherField+'</div><br><button class="btn primary" onclick="createA()">Cadastrar</button></div>','cadastro');
+filterSections();
+}
+function filterSections(){
+const sel=$("cs");if(!sel)return;
+const session=($("csBusca")?.value||"").trim().toLowerCase(),zone=($("cz")?.value||"").trim().toLowerCase(),school=($("ce")?.value||"").trim().toLowerCase();
+const current=sel.value;let first="";
+[...sel.options].forEach(o=>{const ok=(!session||String(o.dataset.sessao||"").toLowerCase().includes(session))&&(!zone||String(o.dataset.zona||"").toLowerCase().includes(zone))&&(!school||String(o.dataset.escola||"").toLowerCase().includes(school));o.hidden=!ok;if(ok&&!first)first=o.value});
+if(current&&[...sel.options].some(o=>o.value===current&&!o.hidden)){}else if(first)sel.value=first;else sel.value="";
+syncResearchers();
+}
+function syncResearchers(){
+const st=stateForCadastro();if(st.role!=="admin")return;
+const sid=$("cs")?.value,rs=$("cr");if(!rs)return;
+const sec=(st.data.sections||[]).find(x=>x.id===sid),loc=sec?(st.data.locations||[]).find(x=>x.id===sec.polling_location_id):null,sector=loc?.sector_id||"";
+let visible=0,first="";
+[...rs.options].forEach((o,i)=>{if(i===0)return;const ok=!sector||o.dataset.sector===sector;o.hidden=!ok;if(ok&&!first)first=o.value;if(ok)visible++});
+if(rs.value&&[...rs.options].some(o=>o.value===rs.value&&!o.hidden)){}else rs.value=visible===1?first:"";
+}
+function stateForCadastro(){const st=window.p20State?window.p20State():null;return st?{data:st.data,role:st.access?.role||""}:{data,role:access?.role||""};}
+async function createA(){
+try{
+const name=$("cn").value.trim(),phone=$("cp").value.trim(),sid=$("cs").value,period=$("ct").value,st=stateForCadastro();
+if(!name)throw Error("Informe o nome da pessoa.");
+if(!sid)throw Error("Selecione uma sessão.");
+if(st.role==="admin"&&!$("cr")?.value)throw Error("Selecione o pesquisador responsável.");
+const body={person_name:name,phone,section_id:sid,period};
+if(st.role==="admin")body.researcher_id=$("cr").value;
+await api("create_assignment",body);await load();$("cm").innerHTML='<div class="notice ok">Cadastro realizado com sucesso.</div>';if(st.role==="admin")render("cadastro");
+}catch(e){$("cm").innerHTML='<div class="notice err">'+esc(e.message)+'</div>'}
+}
 function setores(){let rows=(data.sectors||[]).map(s=>{let loc=data.locations.filter(l=>l.sector_id===s.id),ids=data.sections.filter(x=>loc.some(l=>l.id===x.polling_location_id));return '<tr><td>'+esc(s.name)+'</td><td>'+esc(s.code||'')+'</td><td>'+loc.length+'</td><td>'+ids.length+'</td><td><button class="btn small" onclick="setor(\''+esc(s.id)+'\')">Abrir</button> <button class="btn danger small" onclick="deleteSector(\''+esc(s.id)+'\')">Excluir</button></td></tr>'}).join('');shell('Setores e sessões','Cadastre e gerencie os setores da pesquisa','<div class="grid two"><div class="card"><h2>Novo setor</h2><div id="sm"></div><div class="formgrid"><div class="field"><label>Nome do setor</label><input id="sn" placeholder="Ex.: Setor Norte"></div><div class="field"><label>Código do setor</label><input id="sc" placeholder="Ex.: N01"></div></div><br><button class="btn primary" onclick="createSector()">＋ Adicionar setor</button></div><div class="card"><h2>Setores cadastrados</h2><div class="table"><table><tr><th>Setor</th><th>Código</th><th>Escolas</th><th>Sessões</th><th>Ações</th></tr>'+rows+'</table></div></div></div>','setores')}
 async function createSector(){try{let name=$("sn").value.trim(),code=$("sc").value.trim();if(!name)throw Error("Informe o nome do setor.");await api("create_sector",{name,code});await load();render("setores")}catch(e){$("sm").innerHTML='<div class="notice err">'+esc(e.message)+'</div>'}}
 async function deleteSector(id){if(!confirm("Excluir este setor e os dados vinculados a ele?"))return;try{await api("delete_sector",{id});await load();render("setores")}catch(e){alert(e.message||"Não foi possível excluir o setor.")}}
