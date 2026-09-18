@@ -149,5 +149,5 @@ function logout(){localStorage.removeItem('p20_session');localStorage.removeItem
 window.p20State=()=>({data,access,session,token});
 (function start(){if(token){const prev=localStorage.p20_link_token||'';if(prev!==token){session='';access=null;localStorage.removeItem('p20_session');localStorage.removeItem('p20_access')}if(session&&access)load().then(goHome).catch(login);else login()}else if(session&&access)load().then(goHome).catch(login);else document.body.innerHTML='<div class="login"><div class="loginbox"><div class="logo">P2</div><h1>Pesquisa 2.0</h1><div class="notice">Abra o link individual de acesso enviado pelo administrador.</div></div></div>'})();
 </script>
-<script>if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js?v=18').catch(()=>{});</script>
+<script>if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js?v=21').catch(()=>{});</script>
 </body></html>
