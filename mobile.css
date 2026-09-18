@@ -1,0 +1,51 @@
+/* Pesquisa 2.0 — correção de layout para celular e tablet */
+@media (max-width: 850px){
+  html,body{width:100%;min-width:0;overflow-x:hidden}
+  .app{display:block;min-height:100vh;padding-bottom:74px}
+  .side{position:fixed;left:0;right:0;top:auto;bottom:0;width:100%;height:74px;padding:5px 4px;background:linear-gradient(180deg,#0b1f3a,#07172c);border-top:1px solid #29415f;box-shadow:0 -6px 20px #10274426;z-index:100;display:block}
+  .brand{display:none!important}
+  .side>.nav{display:flex;align-items:stretch;gap:2px;height:62px;width:100%;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+  .side>.nav::-webkit-scrollbar{display:none}
+  .side>.nav button{flex:0 0 76px;width:76px;min-width:76px;height:62px;padding:5px 3px;margin:0;background:transparent;text-align:center;border-radius:9px;color:#cbd7e8;font-size:20px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+  .side>.nav button:hover,.side>.nav button.active{background:#ffffff19;color:#fff}
+  .side>.nav button span{display:block!important;font-size:9px;line-height:11px;white-space:nowrap;max-width:72px;overflow:hidden;text-overflow:ellipsis}
+  .side>div:last-child{position:absolute;right:3px;top:5px;margin:0!important;display:none!important}
+  .main{margin-left:0!important;width:100%;min-width:0}
+  .top{height:auto;min-height:70px;padding:12px 14px;gap:10px;align-items:center}
+  .top h1{font-size:18px;line-height:22px;word-break:break-word}
+  .top p{font-size:11px;line-height:15px}
+  .top .actions{flex-shrink:0}
+  .top .actions .btn{padding:8px 9px;font-size:12px}
+  .top .actions .tag{display:none}
+  .content{padding:12px!important;width:100%;max-width:none;overflow-x:hidden}
+  .grid{width:100%;min-width:0}
+  .kpis{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:9px}
+  .two{grid-template-columns:1fr!important}
+  .card{width:100%;min-width:0;padding:14px;border-radius:14px;overflow:hidden}
+  .card h2{font-size:18px;line-height:23px;margin-top:0}
+  .value{font-size:25px}
+  .formgrid{grid-template-columns:1fr!important;gap:10px}
+  .field input,.field select{width:100%;min-width:0;font-size:16px}
+  .actions{width:100%;gap:7px}
+  .actions .btn{max-width:100%}
+  .table{width:100%;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .table table{min-width:680px}
+  .notice{font-size:12px;line-height:17px}
+}
+@media (max-width:430px){
+  .kpis{grid-template-columns:1fr 1fr!important}
+  .kpi{padding:11px}
+  .kpi .muted{font-size:11px}
+  .value{font-size:23px}
+  .top{padding:10px 12px}
+  .top h1{font-size:17px}
+  .content{padding:10px!important}
+  .card{padding:12px}
+  .side>.nav button{flex-basis:72px;width:72px;min-width:72px}
+}
+@media (min-width:851px) and (max-width:1100px){
+  .side{width:210px}
+  .main{margin-left:210px}
+  .kpis{grid-template-columns:repeat(2,1fr)}
+  .content{padding:18px}
+}
