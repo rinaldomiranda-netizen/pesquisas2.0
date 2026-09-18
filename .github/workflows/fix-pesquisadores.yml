@@ -1,7 +1,11 @@
-name: Ajustar pesquisadores
+name: Corrigir Pesquisa 2.0
 on:
   push:
     branches: [main]
+    paths:
+      - 'index.html'
+      - '.github/workflows/fix-pesquisadores.yml'
+  workflow_dispatch:
 permissions:
   contents: write
 jobs:
@@ -9,36 +13,81 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Corrigir tela de pesquisadores
+      - name: Aplicar correções no frontend
         run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
           p=Path('index.html')
           s=p.read_text(encoding='utf-8')
-          old=re.search(r"function pesquisadores\(\)\{[\s\S]*?\n\}\nasync function createR\(\)",s)
-          if not old:
-              raise SystemExit('Bloco pesquisadores não encontrado')
-          new="""function pesquisadores(){
+
+          # 1) Evitar cache e tornar o Atualizar realmente recarregar os dados do Supabase.
+          s=s.replace('fetch(API,{method:"POST",headers:h,body:JSON.stringify({action,...body})})', 'fetch(API,{method:"POST",headers:h,cache:"no-store",body:JSON.stringify({action,...body})})')
+          s=s.replace('onclick="load().then(()=>render(\\\''+active+'\\\'))"', 'onclick="refreshActive(\\\''+active+'\\\')"')
+          marker='function render(p){'
+          if 'async function refreshActive(active)' not in s:
+              s=s.replace(marker, 'async function refreshActive(active){try{await load();render(active)}catch(e){alert("Não foi possível atualizar os dados: "+(e.message||"Erro"))}}\n'+marker, 1)
+
+          # 2) Manifesto PWA específico por função.
+          if 'function setRoleManifest(role)' not in s:
+              marker='function shell(title,sub,body,active){'
+              fn='function setRoleManifest(role){const m=document.querySelector(\'link[rel="manifest"]\');if(!m)return;const f=role==="admin"?"manifest-admin.webmanifest":role==="director"?"manifest-diretoria.webmanifest":"manifest-pesquisador.webmanifest";m.href="./"+f+"?v=2"}\n'
+              s=s.replace(marker, fn+marker, 1)
+          s=s.replace('const role=access?.role||"",label=role==="admin"?"Administrador":role==="director"?"Diretoria":"Pesquisador";', 'const role=access?.role||"",label=role==="admin"?"Administrador":role==="director"?"Diretoria":"Pesquisador";setRoleManifest(role);')
+
+          # 3) Substituir completamente o bloco de pesquisadores para eliminar a função duplicada,
+          # mostrar telefone e recuperar links persistidos no banco (não depender apenas do localStorage).
+          start=s.find('function pesquisadores(){')
+          end=s.find('async function deleteResearcher(id)', start)
+          if start<0 or end<0:
+              raise SystemExit('Bloco de pesquisadores não encontrado')
+          new=r'''function pesquisadores(){
+            const links=(data.links||[]).filter(x=>x.role==='researcher'&&x.active!==false);
             const saved=JSON.parse(localStorage.getItem('p20_researcher_links')||'{}');
-            let rows=(data.researchers||[]).map(r=>{let sec=data.sectors.find(s=>s.id===r.sector_id),u=r.access_url||saved[r.id]?.url||'',wa=u?'https://wa.me/?text='+encodeURIComponent('Acesso Pesquisa 2.0 — Pesquisador\\n'+u+'\\nSenha inicial: 1234'):'';return '<tr><td>'+esc(r.full_name)+'</td><td>'+esc(sec?.name||'')+'</td><td>'+(u?'<a class=\\\"btn success small\\\" href=\\\"'+wa+'\\\" target=\\\"_blank\\\">WhatsApp</a> <button class=\\\"btn small\\\" onclick=\\\"navigator.clipboard?.writeText(\\\''+esc(u).replaceAll('\\\'','')+'\\\');alert(\\\'Link copiado.\\\')\\\">Copiar link</button>':'<span class=\\\"muted\\\">Link não disponível</span>')+'</td><td><button class=\\\"btn danger small\\\" onclick=\\\"deleteResearcher(\\\''+r.id+'\\\')\\\">Excluir</button></td></tr>'}).join('');
-            shell('Pesquisadores','Acessos individuais por setor','<div class=\\\"grid two\\\"><div class=\\\"card\\\"><h2>Novo pesquisador</h2><div id=\\\"rm\\\"></div><div class=\\\"formgrid\\\"><div class=\\\"field\\\"><label>Nome</label><input id=\\\"rn\\\"></div><div class=\\\"field\\\"><label>Telefone</label><input id=\\\"rp\\\" inputmode=\\\"tel\\\"></div><div class=\\\"field\\\"><label>Setor</label><select id=\\\"rs\\\">'+data.sectors.map(s=>'<option value=\\\"'+s.id+'\\\">'+esc(s.name)+'</option>').join('')+'</select></div></div><br><button id=\\\"crb\\\" class=\\\"btn primary\\\" onclick=\\\"createR()\\\">Criar acesso de pesquisador</button></div><div class=\\\"card\\\"><h2>Pesquisadores cadastrados</h2><div class=\\\"table\\\"><table><tr><th>Nome</th><th>Setor</th><th>Link</th><th>Ações</th></tr>'+rows+'</table></div><br><button class=\\\"btn\\\" onclick=\\\"render(\\\'setores\\\')\\\">◉ Gerenciar setores</button></div></div>','pesquisadores')
+            const linkFor=r=>{const l=links.find(x=>x.id===r.access_link_id||x.researcher_id===r.id||(x.display_name===r.full_name&&x.sector_id===r.sector_id));return r.access_url||l?.url||l?.access_url||saved[r.id]?.url||saved[(r.full_name||'').toLowerCase()+'|'+(r.sector_id||'')]?.url||''};
+            let rows=(data.researchers||[]).map(r=>{let sec=data.sectors.find(s=>s.id===r.sector_id),u=linkFor(r),wa=u?'https://wa.me/?text='+encodeURIComponent('Acesso Pesquisa 2.0 — Pesquisador\n'+u+'\nSenha inicial: 1234'):'';return '<tr><td>'+esc(r.full_name)+'</td><td>'+esc(r.phone||'')+'</td><td>'+esc(sec?.name||'')+'</td><td>'+(u?'<div class="actions"><button class="btn small" onclick="navigator.clipboard?.writeText(\''+esc(u).replaceAll("'",'')+'\');alert(\'Link copiado.\')">Copiar link</button><a class="btn success small" href="'+wa+'" target="_blank">WhatsApp</a></div><small class="muted">'+esc(u)+'</small>':'<span class="muted">Link não disponível</span>')+'</td><td><button class="btn danger small" onclick="deleteResearcher(\''+r.id+'\')">Excluir</button></td></tr>'}).join('');
+            shell('Pesquisadores','Acessos individuais por setor','<div class="grid two"><div class="card"><h2>Novo pesquisador</h2><div id="rm"></div><div class="formgrid"><div class="field"><label>Nome</label><input id="rn"></div><div class="field"><label>Telefone</label><input id="rp" inputmode="tel"></div><div class="field"><label>Setor</label><select id="rs">'+data.sectors.map(s=>'<option value="'+s.id+'">'+esc(s.name)+'</option>').join('')+'</select></div></div><br><button id="crb" class="btn primary" onclick="createR()">Criar acesso de pesquisador</button></div><div class="card"><h2>Pesquisadores cadastrados</h2><div class="table"><table><tr><th>Nome</th><th>Telefone</th><th>Setor</th><th>Link de acesso</th><th>Ações</th></tr>'+rows+'</table></div><br><button class="btn" onclick="render(\'setores\')">◉ Gerenciar setores</button></div></div>','pesquisadores')
           }
           async function createR(){
-            const b=$(\"crb\"); const name=$(\"rn\").value.trim(), phone=$(\"rp\").value.trim(), sector=$(\"rs\").value;
-            if(!name)return $(\"rm\").innerHTML='<div class=\\\"notice err\\\">Informe o nome do pesquisador.</div>';
-            const key=name.toLowerCase()+'|'+sector; const saved=JSON.parse(localStorage.getItem('p20_researcher_links')||'{}');
-            if(saved[key]){ $(\"rm\").innerHTML='<div class=\\\"notice ok\\\"><b>Este pesquisador já possui acesso.</b><br><small>'+esc(saved[key].url)+'</small><br><br><a class=\\\"btn success\\\" href=\\\"'+saved[key].wa+'\\\" target=\\\"_blank\\\">Enviar pelo WhatsApp</a></div>'; return }
-            if(b)b.disabled=true;
-            $(\"rm\").innerHTML='<div class=\\\"notice\\\">Criando acesso do pesquisador…</div>';
-            try{let j=await api('create_link',{role:'researcher',display_name:name,sector_id:sector,phone});let u=j.url||location.origin+location.pathname+'?access='+encodeURIComponent(j.link_token);let wa='https://wa.me/?text='+encodeURIComponent('Acesso Pesquisa 2.0 — Pesquisador\\n'+u+'\\nSenha inicial: 1234');saved[key]={url:u,wa,phone};localStorage.setItem('p20_researcher_links',JSON.stringify(saved));if(j.access?.id){saved[j.access.id]={url:u,wa,phone};localStorage.setItem('p20_researcher_links',JSON.stringify(saved))}$(\"rm\").innerHTML='<div class=\\\"notice ok\\\"><b>✓ Acesso criado com sucesso.</b><br><small>'+esc(u)+'</small><br><br><a class=\\\"btn success\\\" href=\\\"'+wa+'\\\" target=\\\"_blank\\\">Enviar pelo WhatsApp</a></div>';await load();render('pesquisadores')}catch(e){$(\"rm\").innerHTML='<div class=\\\"notice err\\\"><b>Não foi possível criar o acesso.</b><br>'+esc(e.message)+'</div>'}finally{if(b)b.disabled=false}}
-          """
-          s=s[:old.start()]+new+s[old.end()-len('async function createR()'):]
+            const b=$("crb"),name=$("rn").value.trim(),phone=$("rp").value.trim(),sector=$("rs").value;
+            if(!name)return $("rm").innerHTML='<div class="notice err">Informe o nome do pesquisador.</div>';
+            if(b)b.disabled=true;$("rm").innerHTML='<div class="notice">Criando acesso do pesquisador…</div>';
+            try{let j=await api('create_link',{role:'researcher',display_name:name,sector_id:sector,phone});let u=j.url||location.origin+location.pathname+'?access='+encodeURIComponent(j.link_token||'');let wa='https://wa.me/?text='+encodeURIComponent('Acesso Pesquisa 2.0 — Pesquisador\n'+u+'\nSenha inicial: 1234');const saved=JSON.parse(localStorage.getItem('p20_researcher_links')||'{}');if(j.access?.id)saved[j.access.id]={url:u,wa,phone};saved[name.toLowerCase()+'|'+sector]={url:u,wa,phone};localStorage.setItem('p20_researcher_links',JSON.stringify(saved));await load();render('pesquisadores')}catch(e){$("rm").innerHTML='<div class="notice err"><b>Não foi possível criar o acesso.</b><br>'+esc(e.message)+'</div>'}finally{if(b)b.disabled=false}
+          }
+          '''
+          s=s[:start]+new+s[end:]
+
+          # 4) Importação: cancelar/limpar seleção e prévia sem perder dados já persistidos.
+          old="<button class=\"btn primary\" onclick=\"imp()\">⇧ Ler e importar</button>"
+          newbtn=old+"<button class=\"btn danger\" onclick=\"clearImport()\">Cancelar / limpar</button>"
+          s=s.replace(old,newbtn,1)
+          if 'function clearImport()' not in s:
+              marker='async function imp(){'
+              fn='function clearImport(){const f=$("file"),im=$("im"),ip=$("ip");if(f)f.value="";if(im)im.innerHTML="";if(ip)ip.innerHTML=""}\n'
+              s=s.replace(marker,fn+marker,1)
+
+          # 5) Na seção Aplicativo por função, manter o bloco explicitamente exclusivo do administrador.
+          old_card='<div class="card"><h2>Aplicativo por função</h2><p class="muted">Os acessos são identificados separadamente por função.</p><div class="actions"><button class="btn" onclick="installApp()">▣ Administrador</button><button class="btn" onclick="installApp()">▣ Diretoria</button><button class="btn" onclick="installApp()">▣ Pesquisador</button></div></div>'
+          if old_card in s:
+              s=s.replace(old_card, '<div class="card" data-admin-only="true"><h2>Aplicativo por função</h2><p class="muted">Os acessos são identificados separadamente por função.</p><div class="actions"><button class="btn" onclick="installApp()">▣ Administrador</button><button class="btn" onclick="installApp()">▣ Diretoria</button><button class="btn" onclick="installApp()">▣ Pesquisador</button></div></div>',1)
+
           p.write_text(s,encoding='utf-8')
+          PY
+      - name: Validar JavaScript embutido
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('index.html').read_text(encoding='utf-8')
+          assert s.count('async function createR()') == 1, 'createR duplicada'
+          assert 'function clearImport()' in s, 'cancelamento da importação ausente'
+          assert 'function refreshActive(active)' in s, 'Atualizar ausente'
+          assert 'Telefone</th>' in s, 'telefone não aparece na lista'
+          print('Validação estrutural OK')
           PY
       - name: Commit se houver alteração
         run: |
-          git config user.name github-actions
-          git config user.email github-actions@github.com
-          git add index.html
-          git diff --cached --quiet || (git commit -m "Melhorar criação e links dos pesquisadores" && git push)
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html .github/workflows/fix-pesquisadores.yml
+          git diff --cached --quiet || (git commit -m 'Corrigir importação, acessos e PWA por perfil' && git push)
