@@ -110,7 +110,7 @@ return links.map(x=>{
 const sec=data.sectors.find(s=>s.id===x.sector_id);
 const meta=role==="researcher"?esc(sec?.name||"Setor não informado"):"Acesso "+esc(accessRoleLabel(role));
 const u=x.url||"";
-const link=u?'<div style="margin-top:7px;word-break:break-all"><small>'+esc(u)+'</small></div>'+linkActions(u,accessRoleLabel(role)):'<div class="notice" style="margin-top:8px"><span class="muted">Link antigo sem URL recuperável.</span><br><br><button class="btn small" onclick="regenerateAccess(\\''+esc(x.id)+'\\')">Gerar novo link</button></div>';
+const link=u?'<div style="margin-top:7px;word-break:break-all"><small>'+esc(u)+'</small></div>'+linkActions(u,accessRoleLabel(role)):'<div class="notice" style="margin-top:8px"><span class="muted">Link antigo sem URL recuperável.</span><br><br><button class="btn small" data-access-id="'+esc(x.id)+'" onclick="regenerateAccess(this.dataset.accessId)">Gerar novo link</button></div>';
 return '<div class="notice"><b>'+esc(x.display_name||accessRoleLabel(role))+'</b><br><span class="muted">'+meta+(x.phone?" — "+esc(x.phone):"")+'</span>'+link+'</div>';
 }).join("<br>");
 }
@@ -121,7 +121,6 @@ catch(e){alert(e.message||"Não foi possível gerar o novo link.")}
 function acessosAdministracao(){
 return '<div class="card"><h2>Links de acesso</h2><p class="muted">Aqui ficam os três tipos de acesso que a administração pode compartilhar: Administrador, Diretoria e Pesquisador.</p><div class="grid two"><div><h3 style="margin-bottom:8px">Administrador</h3>'+accessListByRole("admin")+'</div><div><h3 style="margin-bottom:8px">Diretoria</h3>'+accessListByRole("director")+'</div></div><br><h3 style="margin-bottom:8px">Pesquisadores</h3>'+accessListByRole("researcher")+'</div>';
 }
-function diretoriaRows(){return data.sectors.map(s=>{let loc=data.locations.filter(l=>l.sector_id===s.id),ids=new Set(data.sections.filter(x=>loc.some(l=>l.id===x.polling_location_id)).map(x=>x.id)),n=data.assignments.filter(a=>ids.has(a.section_id)).length;return '<tr><td>'+esc(s.name)+'</td><td>'+ids.size+'</td><td>'+n+'</td><td><button class="btn small" onclick="setor(\\''+esc(s.id)+'\\')">Abrir setor</button></td></tr>'}).join('')}
 function diretoria(){
 const isAdmin=access?.role==='admin';
 const create=isAdmin
