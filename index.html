@@ -84,7 +84,6 @@ async function imp(){
     await load();
     $("im").innerHTML='<div class="notice ok">Importação concluída: <b>'+j.schools+' escola(s)</b>, <b>'+j.sections+' sessão(ões)</b>, '+(j.skipped||0)+' linha(s) ignorada(s).</div>';
     renderImportPreview(rows,'Arquivo importado — conferência');
-    render('setores');
   }catch(e){$("im")&&($("im").innerHTML='<div class="notice err">'+esc(e.message)+'</div>')}
 }
 function entrevista(){shell('Entrevista','Cadastro em campo','<div class="card"><h2>Pesquisa de campo</h2><p class="muted">Registre o entrevistado conforme o setor e a sessão atribuída ao pesquisador.</p><div id="em"></div><div class="formgrid"><div class="field"><label>Nome</label><input id="en"></div><div class="field"><label>Telefone</label><input id="ep"></div><div class="field"><label>Sessão</label><select id="es">'+data.sections.map(s=>'<option value="'+s.id+'">'+esc(s.section)+'</option>').join('')+'</select></div><div class="field"><label>Período</label><select id="et"><option value="morning">Manhã</option><option value="afternoon">Tarde</option></select></div></div><br><button class="btn primary" onclick="createA()">Registrar</button></div>','entrevista')}
