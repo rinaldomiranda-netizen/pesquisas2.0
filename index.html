@@ -125,7 +125,7 @@ try{
 const name=$("an").value.trim();
 if(!name)throw Error("Informe o nome do administrador.");
 const j=await api("create_link",{role:"admin",display_name:name});
-const u=accessUrlForRole(j,"admin.html");
+const u=String(j?.url||"");
 if(!u)throw Error("O acesso foi criado, mas o servidor não devolveu um link.");
 showGeneratedAccess("adminAccessResult",u,"Administrador de Pesquisa");
 }catch(e){const h=$("adminAccessResult");if(h)h.innerHTML='<div class="notice err">'+esc(e.message||"Não foi possível criar o acesso.")+'</div>';}
@@ -136,7 +136,7 @@ const name=$("gan").value.trim(),phone=$("gap").value.trim(),sector=$("gas").val
 if(!name)throw Error("Informe o nome do pesquisador.");
 if(!sector)throw Error("Selecione o setor.");
 const j=await api("create_link",{role:"researcher",display_name:name,sector_id:sector,phone});
-const u=accessUrlForRole(j,"pesquisador.html");
+const u=String(j?.url||"");
 if(!u)throw Error("O acesso foi criado, mas o servidor não devolveu o link.");
 showGeneratedAccess("researcherAccessResult",u,"Pesquisador");
 }catch(e){const h=$("researcherAccessResult");if(h)h.innerHTML='<div class="notice err">'+esc(e.message||"Não foi possível criar o acesso.")+'</div>';}
@@ -146,7 +146,7 @@ try{
 const name=$("dn").value.trim();
 if(!name)throw Error("Informe o nome da diretoria.");
 const j=await api("create_link",{role:"director",display_name:name});
-const u=accessUrlForRole(j,"diretoria.html");
+const u=String(j?.url||"");
 if(!u)throw Error("O acesso foi criado, mas o servidor não devolveu o link.");
 showGeneratedAccess("directorAccessResult",u,"Diretoria de Pesquisa");
 }catch(e){const h=$("directorAccessResult");if(h)h.innerHTML='<div class="notice err">'+esc(e.message||"Não foi possível criar o acesso.")+'</div>';}
@@ -158,5 +158,5 @@ function logout(){localStorage.removeItem('p20_session');localStorage.removeItem
 window.p20State=()=>({data,access,session,token});
 (function start(){if(token){const prev=localStorage.p20_link_token||'';if(prev!==token){session='';access=null;localStorage.removeItem('p20_session');localStorage.removeItem('p20_access')}if(session&&access)load().then(goHome).catch(login);else login()}else if(session&&access)load().then(goHome).catch(login);else document.body.innerHTML='<div class="login"><div class="loginbox"><div class="logo">P2</div><h1>Pesquisa 2.0</h1><div class="notice">Abra o link individual de acesso enviado pelo administrador.</div></div></div>'})();
 </script>
-<script>if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js?v=23').catch(()=>{});</script>
+<script>if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js?v=24').catch(()=>{});</script>
 </body></html>
