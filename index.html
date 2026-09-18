@@ -40,8 +40,8 @@ function dashboard(){shell('Dashboard','Visão geral da operação de campo','<d
 function cadastro(){
 const sections=data.sections||[],role=access?.role||"admin";
 const opts=sections.map(s=>{const l=data.locations.find(x=>x.id===s.polling_location_id);return '<option value="'+esc(s.id)+'" data-zona="'+esc(l?.zone||s.zone||'')+'" data-escola="'+esc(l?.school_name||'')+'" data-sessao="'+esc(s.section)+'">'+esc(s.section)+' — Zona '+esc(l?.zone||s.zone||'')+' — '+esc(l?.school_name||'')+'</option>'}).join('');
-const researchers=role==="admin"?(data.researchers||[]).map(r=>'<option value="'+esc(r.id)+'" data-sector="'+esc(r.sector_id||'')+'">'+esc(r.full_name)+' — '+esc(data.sectors.find(s=>s.id===r.sector_id)?.name||'')+'</option>').join(""):"";
-const researcherField=role==="admin"?'<div class="field"><label>Pesquisador responsável *</label><select id="cr"><option value="">Selecione o pesquisador</option>'+researchers+'</select><small class="muted">Para o administrador, selecione quem ficará responsável pelo cadastro.</small></div>':"";
+const researchers=(role==="admin"||role==="researcher")?(data.researchers||[]).map(r=>'<option value="'+esc(r.id)+'" data-sector="'+esc(r.sector_id||'')+'">'+esc(r.full_name)+' — '+esc(data.sectors.find(s=>s.id===r.sector_id)?.name||'')+'</option>').join(""):"";
+const researcherField=(role==="admin"||role==="researcher")?'<div class="field"><label>Pesquisador responsável *</label><select id="cr"><option value="">Selecione o pesquisador</option>'+researchers+'</select><small class="muted">'+(role==="admin"?"O administrador pode escolher qualquer pesquisador cadastrado.":"Você pode escolher somente pesquisadores do seu setor.")+'</small></div>':"";
 shell('Novo cadastro','Use Sessão, Zona ou Escola para localizar. Depois clique no resultado: os três campos serão preenchidos automaticamente.','<div class="card"><div id="cm"></div><div class="formgrid"><div class="field"><label>Nome da pessoa *</label><input id="cn" placeholder="Nome completo"></div><div class="field"><label>Telefone</label><input id="cp" inputmode="tel" placeholder="Telefone"></div><div class="field"><label>Buscar sessão</label><input id="csBusca" inputmode="text" placeholder="Ex.: 103" oninput="filterSections()"></div><div class="field"><label>Buscar zona</label><input id="cz" placeholder="Ex.: 3" oninput="filterSections()"></div><div class="field"><label>Buscar escola</label><input id="ce" placeholder="Digite parte do nome" oninput="filterSections()"></div><div class="field"><label>Resultado — clique para selecionar a sessão *</label><select id="cs" size="6" onchange="selectSectionOption()">'+opts+'</select><small class="muted">Sessão é obrigatória para cadastrar. Zona e escola são apenas filtros para encontrar a sessão.</small></div><div class="field"><label>Período *</label><select id="ct"><option value="morning">Manhã</option><option value="afternoon">Tarde</option></select></div>'+researcherField+'</div><br><button class="btn primary" onclick="createA()">Cadastrar</button></div>','cadastro');
 filterSections();
 }
@@ -61,22 +61,30 @@ const selected=[...sel.options].find(x=>x.value===o.value);if(selected)selected.
 syncResearchers();
 }
 function syncResearchers(){
-const st=stateForCadastro();if(st.role!=="admin")return;
-const sid=$("cs")?.value,rs=$("cr");if(!rs)return;
-const sec=(st.data.sections||[]).find(x=>x.id===sid),loc=sec?(st.data.locations||[]).find(x=>x.id===sec.polling_location_id):null,sector=loc?.sector_id||"";
-let visible=0,first="";
-[...rs.options].forEach((o,i)=>{if(i===0)return;const ok=!sector||o.dataset.sector===sector;o.hidden=!ok;if(ok&&!first)first=o.value;if(ok)visible++});
-if(rs.value&&[...rs.options].some(o=>o.value===rs.value&&!o.hidden)){}else rs.value=visible===1?first:"";
+const st=stateForCadastro(),rs=$("cr");if(!rs)return;
+const current=rs.value;
+if(st.role==="admin"){
+  [...rs.options].forEach(o=>o.hidden=false);
+  if(current&&[...rs.options].some(o=>o.value===current&&!o.hidden))rs.value=current;
+  return;
 }
-function stateForCadastro(){const st=window.p20State?window.p20State():null;return st?{data:st.data,role:st.access?.role||""}:{data,role:access?.role||""};}
+if(st.role!=="researcher")return;
+const myAccess=st.access?.id||access?.id||"",mine=(st.data.researchers||[]).find(r=>r.access_link_id===myAccess);
+let first="";
+[...rs.options].forEach((o,i)=>{if(i===0)return;const ok=true;o.hidden=!ok;if(!first)first=o.value});
+if(mine&&[...rs.options].some(o=>o.value===mine.id&&!o.hidden))rs.value=mine.id;
+else if(current&&[...rs.options].some(o=>o.value===current&&!o.hidden))rs.value=current;
+else if(first)rs.value=first;
+}
+function stateForCadastro(){const st=window.p20State?window.p20State():null;return st?{data:st.data,role:st.access?.role||"",access:st.access||null}:{data,role:access?.role||"",access};}
 async function createA(){
 try{
 const name=$("cn").value.trim(),phone=$("cp").value.trim(),sid=$("cs").value,period=$("ct").value,st=stateForCadastro();
 if(!name)throw Error("Informe o nome da pessoa.");
 if(!sid)throw Error("Selecione uma sessão no resultado da busca.");
-if(st.role==="admin"&&!$("cr")?.value)throw Error("Selecione o pesquisador responsável.");
+if((st.role==="admin"||st.role==="researcher")&&!$("cr")?.value)throw Error("Selecione o pesquisador responsável.");
 const body={person_name:name,phone,section_id:sid,period};
-if(st.role==="admin")body.researcher_id=$("cr").value;
+if(st.role==="admin"||st.role==="researcher")body.researcher_id=$("cr").value;
 await api("create_assignment",body);
 await load();
 $("cm").innerHTML='<div class="notice ok">Cadastro realizado com sucesso.</div>';
