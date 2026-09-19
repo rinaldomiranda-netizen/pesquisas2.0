@@ -42,14 +42,13 @@ function cadastro(){
 const sections=data.sections||[],role=access?.role||"admin";
 const opts=sections.map(s=>{const l=data.locations.find(x=>x.id===s.polling_location_id);return '<option value="'+esc(s.id)+'" data-zona="'+esc(l?.zone||s.zone||'')+'" data-escola="'+esc(l?.school_name||'')+'" data-sessao="'+esc(s.section)+'" data-sector="'+esc(l?.sector_id||'')+'">'+esc(s.section)+' — Zona '+esc(l?.zone||s.zone||'')+' — '+esc(l?.school_name||'')+'</option>'}).join('');
 const researchers=(role==="admin"||role==="researcher")?(data.researchers||[]).map(r=>'<option value="'+esc(r.id)+'" data-sector="'+esc(r.sector_id||'')+'">'+esc(r.full_name)+' — '+esc(data.sectors.find(s=>s.id===r.sector_id)?.name||'')+'</option>').join(""):"";
-const researcherField=(role==="admin"||role==="researcher")?'<div class="field"><label>Pesquisador responsável *</label><select id="cr" onchange="filterSections()"><option value="">Selecione o pesquisador</option>'+researchers+'</select><small class="muted">'+(role==="admin"?"Selecione primeiro o pesquisador: a lista de sessões abaixo mostrará só o setor dele.":"Você pode escolher somente pesquisadores do seu setor.")+'</small></div>':"";
+const researcherField=(role==="admin"||role==="researcher")?'<div class="field"><label>Pesquisador responsável *</label><select id="cr" onchange="filterSections();renderCadImportedBase()"><option value="">Selecione o pesquisador</option>'+researchers+'</select><small class="muted">'+(role==="admin"?"Selecione primeiro o pesquisador: a lista de sessões e a lista importada abaixo mostrarão só o setor dele.":"Você pode escolher somente pesquisadores do seu setor.")+'</small></div>':"";
 const emptyNotice=(role==="researcher"&&!sections.length)?'<div class="notice" style="margin-bottom:14px">Nenhuma escola/sessão foi importada ainda para o seu setor. A lista é sincronizada automaticamente assim que o administrador importar a planilha — ou toque em “↻ Atualizar” no topo da tela.</div>':"";
-const myBase=(role==="researcher")?(data.importedBase||[]):[];
-const myBaseCard=myBase.length?('<div class="card" style="margin-top:16px"><h2>Lista importada do seu setor</h2><p class="muted">'+myBase.length+' linha(s)'+(myBase[0]?.source_filename?' — arquivo: '+esc(myBase[0].source_filename):'')+'</p><div class="table"><table><tr><th>#</th><th>Nome</th><th>Telefone</th><th>Zona</th><th>Escola</th><th>Seção</th></tr>'+myBase.slice(0,100).map(r=>'<tr><td>'+esc(r.row_number)+'</td><td>'+esc(r.person_name||'')+'</td><td>'+esc(r.phone||'')+'</td><td>'+esc(r.zone||'')+'</td><td>'+esc(r.school_name||'')+'</td><td>'+esc(r.section||'')+'</td></tr>').join('')+'</table></div>'+(myBase.length>100?'<p class="muted" style="font-size:11px">Mostrando as primeiras 100 linhas.</p>':'')+'</div>'):'';
 const resultHint=(role==="admin"||role==="researcher")?"Sessão é obrigatória para cadastrar. Zona e escola são apenas filtros. Selecione primeiro o pesquisador acima: só aparece a lista do setor dele.":"Sessão é obrigatória para cadastrar. Zona e escola são apenas filtros para encontrar a sessão.";
-shell('Novo cadastro','Use Sessão, Zona ou Escola para localizar. Depois clique no resultado: os três campos serão preenchidos automaticamente.','<div class="card">'+emptyNotice+'<div id="cm"></div><div class="formgrid"><div class="field"><label>Nome da pessoa *</label><input id="cn" placeholder="Nome completo"></div><div class="field"><label>Telefone</label><input id="cp" inputmode="tel" placeholder="Telefone"></div>'+researcherField+'<div class="field"><label>Buscar sessão</label><input id="csBusca" inputmode="text" placeholder="Ex.: 103" oninput="filterSections()"></div><div class="field"><label>Buscar zona</label><input id="cz" placeholder="Ex.: 3" oninput="filterSections()"></div><div class="field"><label>Buscar escola</label><input id="ce" placeholder="Digite parte do nome" oninput="filterSections()"></div><div class="field"><label>Resultado — clique para selecionar a sessão *</label><select id="cs" size="6" onchange="selectSectionOption()">'+opts+'</select><small class="muted">'+resultHint+'</small></div><div class="field"><label>Período *</label><select id="ct"><option value="morning">Manhã</option><option value="afternoon">Tarde</option></select></div></div><br><button class="btn primary" onclick="createA()">Cadastrar</button></div>'+myBaseCard,'cadastro');
+shell('Novo cadastro','Use Sessão, Zona ou Escola para localizar. Depois clique no resultado: os três campos serão preenchidos automaticamente.','<div class="card">'+emptyNotice+'<div id="cm"></div><div class="formgrid"><div class="field"><label>Nome da pessoa *</label><input id="cn" placeholder="Nome completo"></div><div class="field"><label>Telefone</label><input id="cp" inputmode="tel" placeholder="Telefone"></div>'+researcherField+'<div class="field"><label>Buscar sessão</label><input id="csBusca" inputmode="text" placeholder="Ex.: 103" oninput="filterSections()"></div><div class="field"><label>Buscar zona</label><input id="cz" placeholder="Ex.: 3" oninput="filterSections()"></div><div class="field"><label>Buscar escola</label><input id="ce" placeholder="Digite parte do nome" oninput="filterSections()"></div><div class="field"><label>Resultado — clique para selecionar a sessão *</label><select id="cs" size="6" onchange="selectSectionOption()">'+opts+'</select><small class="muted">'+resultHint+'</small></div><div class="field"><label>Período *</label><select id="ct"><option value="morning">Manhã</option><option value="afternoon">Tarde</option></select></div></div><br><button class="btn primary" onclick="createA()">Cadastrar</button></div><div id="cadImportedBase"></div>','cadastro');
 initResearcherSelector();
 filterSections();
+renderCadImportedBase();
 }
 function filterSections(){
 const sel=$("cs");if(!sel)return;
@@ -62,6 +61,28 @@ const matchesSector=!crSel?true:(researcherSector===null?false:String(o.dataset.
 o.hidden=!(matchesText&&matchesSector);
 });
 }
+function renderImportedBaseTable(rows,title){
+return '<div class="card" style="margin-top:16px"><h2>'+esc(title)+'</h2><p class="muted">'+rows.length+' linha(s)'+(rows[0]?.source_filename?' — arquivo: '+esc(rows[0].source_filename):'')+'</p><div class="table"><table><tr><th>#</th><th>Nome</th><th>Telefone</th><th>Zona</th><th>Escola</th><th>Seção</th></tr>'+rows.slice(0,100).map(r=>'<tr><td>'+esc(r.row_number)+'</td><td>'+esc(r.person_name||'')+'</td><td>'+esc(r.phone||'')+'</td><td>'+esc(r.zone||'')+'</td><td>'+esc(r.school_name||'')+'</td><td>'+esc(r.section||'')+'</td></tr>').join('')+'</table></div>'+(rows.length>100?'<p class="muted" style="font-size:11px">Mostrando as primeiras 100 linhas.</p>':'')+'</div>';
+}
+function renderCadImportedBase(){
+const box=$("cadImportedBase");if(!box)return;
+const role=access?.role||"admin";
+const all=data.importedBase||[];
+if(role==="researcher"){
+box.innerHTML=all.length?renderImportedBaseTable(all,'Lista importada do seu setor'):'';
+return;
+}
+if(role!=="admin"){box.innerHTML='';return}
+const crSel=$("cr");
+const rid=crSel?.value||"";
+if(!rid){box.innerHTML='';return}
+const researcher=(data.researchers||[]).find(x=>x.id===rid);
+const sectorName=(data.sectors||[]).find(s=>s.id===researcher?.sector_id)?.name||"";
+const rows=sectorName?all.filter(r=>String(r.sector||"").trim().toLowerCase()===sectorName.trim().toLowerCase()):[];
+const label='Lista importada do setor de '+(researcher?.full_name||'')+' ('+sectorName+')';
+box.innerHTML=rows.length?renderImportedBaseTable(rows,label):'<div class="notice" style="margin-top:16px">Nenhuma linha importada encontrada para o setor "'+esc(sectorName)+'".</div>';
+}
+
 function selectSectionOption(){
 const sel=$("cs");const o=sel?.selectedOptions?.[0];if(!o)return;
 $("csBusca").value=o.dataset.sessao||"";
@@ -169,5 +190,5 @@ function logout(){localStorage.removeItem('p20_session');localStorage.removeItem
 window.p20State=()=>({data,access,session,token});
 (function start(){if(token){const prev=localStorage.p20_link_token||'',storedRole=access?.role||'';const roleMismatch=requestedRole&&storedRole&&storedRole!==requestedRole;if(prev!==token||roleMismatch){session='';access=null;localStorage.removeItem('p20_session');localStorage.removeItem('p20_access')}if(session&&access)load().then(()=>{if(requestedRole&&access?.role!==requestedRole)return login();goHome();startAutoRefresh()}).catch(login);else login()}else if(session&&access)load().then(()=>{goHome();startAutoRefresh()}).catch(login);else document.body.innerHTML='<div class="login"><div class="loginbox"><div class="logo">P2</div><h1>Pesquisa 2.0</h1><div class="notice">Abra o link individual de acesso enviado pelo administrador.</div></div></div>'})();
 </script>
-<script>if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js?v=34').catch(()=>{});</script>
+<script>if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js?v=35').catch(()=>{});</script>
 </body></html>
