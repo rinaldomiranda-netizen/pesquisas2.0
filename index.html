@@ -19,7 +19,7 @@
 <body><div id="app"></div>
 <script>
 const API="https://oqqksddzwrlkqnfpfshu.supabase.co/functions/v1/field-access";
-const urlParams=new URLSearchParams(location.search),requestedRole=urlParams.get("perfil")||"";let token=urlParams.get("access")||"",session=localStorage.p20_session||"",access=JSON.parse(localStorage.p20_access||"null"),data={locations:[],sections:[],assignments:[],researchers:[],sectors:[]},deferredInstallPrompt=null,currentPage='',autoRefreshTimer=null;
+const urlParams=new URLSearchParams(location.search),requestedRole=urlParams.get("perfil")||"";let token=urlParams.get("access")||"",session=localStorage.p20_session||"",access=JSON.parse(localStorage.p20_access||"null"),data={locations:[],sections:[],assignments:[],researchers:[],sectors:[]},deferredInstallPrompt=null,currentPage='',autoRefreshTimer=null,editingAssignmentId=null;
 window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();deferredInstallPrompt=e;document.dispatchEvent(new Event("p20-install-ready"))});
 const $=id=>document.getElementById(id),esc=v=>String(v??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
 const wa=t=>"https://wa.me/?text="+encodeURIComponent(t);
@@ -39,16 +39,18 @@ function installApp(){if(window.parent!==window&&typeof window.parent.__p20Insta
 function render(p){document.querySelector(".side")?.classList.remove("open");currentPage=p;if(p==='dashboard')return dashboard();if(p==='cadastro')return cadastro();if(p==='setores')return setores();if(p==='relatorios')return relatorios();if(p==='pesquisadores')return pesquisadores();if(p==='diretoria')return diretoria();if(p==='importar')return importar();if(p==='entrevista')return entrevista()}
 function dashboard(){shell('Dashboard','Visão geral da operação de campo','<div class="grid kpis">'+k('Cadastros',data.assignments.length,'✓')+k('Setores',data.sectors.length,'▦')+k('Escolas',data.locations.length,'⌂')+k('Sessões',data.sections.length,'◉')+'</div><br><div class="grid two"><div class="card"><h2>Pesquisa 2.0</h2><p class="muted">Gestão de pesquisadores, escolas, zonas e sessões.</p><br><div class="actions"><button class="btn primary" onclick="render(\'cadastro\')">＋ Novo cadastro</button><button class="btn" onclick="render(\'setores\')">Abrir setores e sessões</button></div></div><div class="card"><h2>Regra de alocação</h2><p>Máximo de <b>2 pessoas por sessão</b>: uma no período da manhã e uma no período da tarde.</p></div></div>','dashboard')}
 function cadastro(){
+editingAssignmentId=null;
 const sections=data.sections||[],role=access?.role||"admin";
 const opts=sections.map(s=>{const l=data.locations.find(x=>x.id===s.polling_location_id);return '<option value="'+esc(s.id)+'" data-zona="'+esc(l?.zone||s.zone||'')+'" data-escola="'+esc(l?.school_name||'')+'" data-sessao="'+esc(s.section)+'" data-sector="'+esc(l?.sector_id||'')+'">'+esc(s.section)+' — Zona '+esc(l?.zone||s.zone||'')+' — '+esc(l?.school_name||'')+'</option>'}).join('');
 const researchers=(role==="admin"||role==="researcher")?(data.researchers||[]).map(r=>'<option value="'+esc(r.id)+'" data-sector="'+esc(r.sector_id||'')+'">'+esc(r.full_name)+' — '+esc(data.sectors.find(s=>s.id===r.sector_id)?.name||'')+'</option>').join(""):"";
-const researcherField=(role==="admin"||role==="researcher")?'<div class="field"><label>Pesquisador responsável *</label><select id="cr" onchange="filterSections();renderCadImportedBase()"><option value="">Selecione o pesquisador</option>'+researchers+'</select><small class="muted">'+(role==="admin"?"Selecione primeiro o pesquisador: a lista de sessões e a lista importada abaixo mostrarão só o setor dele.":"Você pode escolher somente pesquisadores do seu setor.")+'</small></div>':"";
+const researcherField=(role==="admin"||role==="researcher")?'<div class="field"><label>Pesquisador responsável *</label><select id="cr" onchange="filterSections();renderCadImportedBase();renderCadProgress()"><option value="">Selecione o pesquisador</option>'+researchers+'</select><small class="muted">'+(role==="admin"?"Selecione primeiro o pesquisador: a lista de sessões, a lista importada e o progresso abaixo mostrarão só o setor dele.":"Você pode escolher somente pesquisadores do seu setor.")+'</small></div>':"";
 const emptyNotice=(role==="researcher"&&!sections.length)?'<div class="notice" style="margin-bottom:14px">Nenhuma escola/sessão foi importada ainda para o seu setor. A lista é sincronizada automaticamente assim que o administrador importar a planilha — ou toque em “↻ Atualizar” no topo da tela.</div>':"";
 const resultHint=(role==="admin"||role==="researcher")?"Sessão é obrigatória para cadastrar. Zona e escola são apenas filtros. Selecione primeiro o pesquisador acima: só aparece a lista do setor dele.":"Sessão é obrigatória para cadastrar. Zona e escola são apenas filtros para encontrar a sessão.";
-shell('Novo cadastro','Use Sessão, Zona ou Escola para localizar. Depois clique no resultado: os três campos serão preenchidos automaticamente.','<div class="card">'+emptyNotice+'<div id="cm"></div><div class="formgrid"><div class="field"><label>Nome da pessoa *</label><input id="cn" placeholder="Nome completo"></div><div class="field"><label>Telefone</label><input id="cp" inputmode="tel" placeholder="Telefone"></div>'+researcherField+'<div class="field"><label>Buscar sessão</label><input id="csBusca" inputmode="text" placeholder="Ex.: 103" oninput="filterSections()"></div><div class="field"><label>Buscar zona</label><input id="cz" placeholder="Ex.: 3" oninput="filterSections()"></div><div class="field"><label>Buscar escola</label><input id="ce" placeholder="Digite parte do nome" oninput="filterSections()"></div><div class="field"><label>Resultado — clique para selecionar a sessão *</label><select id="cs" size="6" onchange="selectSectionOption()">'+opts+'</select><small class="muted">'+resultHint+'</small></div><div class="field"><label>Período *</label><select id="ct"><option value="morning">Manhã</option><option value="afternoon">Tarde</option></select></div></div><br><button class="btn primary" onclick="createA()">Cadastrar</button></div><div id="cadImportedBase"></div>','cadastro');
+shell('Novo cadastro','Use Sessão, Zona ou Escola para localizar. Depois clique no resultado: os três campos serão preenchidos automaticamente.','<div class="card">'+emptyNotice+'<div id="cm"></div><div class="formgrid"><div class="field"><label>Nome da pessoa *</label><input id="cn" placeholder="Nome completo"></div><div class="field"><label>Telefone</label><input id="cp" inputmode="tel" placeholder="Telefone"></div>'+researcherField+'<div class="field"><label>Buscar sessão</label><input id="csBusca" inputmode="text" placeholder="Ex.: 103" oninput="filterSections()"></div><div class="field"><label>Buscar zona</label><input id="cz" placeholder="Ex.: 3" oninput="filterSections()"></div><div class="field"><label>Buscar escola</label><input id="ce" placeholder="Digite parte do nome" oninput="filterSections()"></div><div class="field"><label>Resultado — clique para selecionar a sessão *</label><select id="cs" size="6" onchange="selectSectionOption()">'+opts+'</select><small class="muted">'+resultHint+'</small></div><div class="field"><label>Período *</label><select id="ct"><option value="morning">Manhã</option><option value="afternoon">Tarde</option></select></div></div><br><button id="cadSubmitBtn" class="btn primary" onclick="createA()">Cadastrar</button></div><div id="cadProgress"></div><div id="cadImportedBase"></div>','cadastro');
 initResearcherSelector();
 filterSections();
 renderCadImportedBase();
+renderCadProgress();
 }
 function filterSections(){
 const sel=$("cs");if(!sel)return;
@@ -82,6 +84,58 @@ const rows=sectorName?all.filter(r=>String(r.sector||"").trim().toLowerCase()===
 const label='Lista importada do setor de '+(researcher?.full_name||'')+' ('+sectorName+')';
 box.innerHTML=rows.length?renderImportedBaseTable(rows,label):'<div class="notice" style="margin-top:16px">Nenhuma linha importada encontrada para o setor "'+esc(sectorName)+'".</div>';
 }
+function renderCadProgress(){
+const box=$("cadProgress");if(!box)return;
+const role=access?.role||"admin";
+let researcher=null;
+if(role==="researcher"){
+const myAccess=access?.id||"";
+researcher=(data.researchers||[]).find(r=>r.access_link_id===myAccess)||null;
+}else if(role==="admin"){
+const crSel=$("cr"),rid=crSel?.value||"";
+researcher=(data.researchers||[]).find(x=>x.id===rid)||null;
+}else{box.innerHTML='';return}
+if(!researcher){box.innerHTML='';return}
+const mine=(data.assignments||[]).filter(a=>a.researcher_id===researcher.id).sort((x,y)=>new Date(y.created_at)-new Date(x.created_at));
+const sectorSections=role==="researcher"?(data.sections||[]).length:(data.sections||[]).filter(sec=>{const l=data.locations.find(x=>x.id===sec.polling_location_id);return l?.sector_id===researcher.sector_id}).length;
+const target=sectorSections*2;
+const pct=target?Math.min(100,Math.round(mine.length/target*100)):0;
+const rowsHtml=mine.map(a=>{const sec=(data.sections||[]).find(x=>x.id===a.section_id),l=data.locations.find(x=>x.id===sec?.polling_location_id);return '<tr><td>'+esc(a.person_name)+'</td><td>'+esc(a.phone||'')+'</td><td>'+esc(sec?.section||'')+' — '+esc(l?.school_name||'')+'</td><td>'+esc(a.period==='morning'?'Manhã':'Tarde')+'</td><td><div class="actions"><button class="btn small" onclick="startEditAssignment(\''+esc(a.id)+'\')">✎ Editar</button><button class="btn danger small" onclick="removeMyAssignment(\''+esc(a.id)+'\')">🗑 Excluir</button></div></td></tr>'}).join('');
+box.innerHTML='<div class="card" style="margin-top:16px"><h2>'+(role==="admin"?'Cadastros de '+esc(researcher.full_name):'Meus cadastros')+'</h2><p class="muted">'+mine.length+' cadastro(s)'+(target?' de uma meta estimada de '+target+' ('+pct+'%) — '+sectorSections+' sessão(ões) no setor × 2 pessoas':'')+'</p>'+(target?'<div style="background:#edf2f8;border-radius:8px;height:10px;overflow:hidden;margin:8px 0 14px"><div style="background:var(--accent);height:100%;width:'+pct+'%"></div></div>':'')+(mine.length?'<div class="table"><table><tr><th>Nome</th><th>Telefone</th><th>Sessão</th><th>Período</th><th>Ações</th></tr>'+rowsHtml+'</table></div>':'<div class="notice">Nenhum cadastro feito ainda.</div>')+'</div>';
+}
+function startEditAssignment(id){
+const a=(data.assignments||[]).find(x=>x.id===id);if(!a)return;
+editingAssignmentId=id;
+$("cn").value=a.person_name||'';
+$("cp").value=a.phone||'';
+$("ct").value=a.period||'morning';
+$("cm").innerHTML='<div class="notice">Editando cadastro de <b>'+esc(a.person_name)+'</b>. Altere o que precisar e toque em <b>Salvar edição</b>. <a href="#" onclick="cancelEditAssignment();return false">Cancelar edição</a></div>';
+updateCadastroButton();
+$("cn").scrollIntoView({behavior:'smooth',block:'center'});
+}
+function cancelEditAssignment(){
+editingAssignmentId=null;
+if($("cn"))$("cn").value='';
+if($("cp"))$("cp").value='';
+if($("ct"))$("ct").value='morning';
+if($("cm"))$("cm").innerHTML='';
+updateCadastroButton();
+}
+function updateCadastroButton(){
+const btn=$("cadSubmitBtn");if(!btn)return;
+btn.textContent=editingAssignmentId?'Salvar edição':'Cadastrar';
+}
+async function removeMyAssignment(id){
+if(!confirm('Excluir este cadastro? Essa ação não pode ser desfeita.'))return;
+try{
+await api('delete_assignment',{id});
+await load();
+if(editingAssignmentId===id)cancelEditAssignment();
+renderCadProgress();
+renderCadImportedBase();
+$("cm").innerHTML='<div class="notice ok">Cadastro excluído.</div>';
+}catch(e){$("cm").innerHTML='<div class="notice err">'+esc(e.message)+'</div>'}
+}
 
 function selectSectionOption(){
 const sel=$("cs");const o=sel?.selectedOptions?.[0];if(!o)return;
@@ -108,38 +162,67 @@ else if(rs.options.length>1)rs.value=rs.options[1].value;
 function stateForCadastro(){const st=window.p20State?window.p20State():null;return st?{data:st.data,role:st.access?.role||"",access:st.access||null}:{data,role:access?.role||"",access};}
 async function createA(){
 try{
-const name=$("cn").value.trim(),phone=$("cp").value.trim(),sid=$("cs").value,period=$("ct").value,st=stateForCadastro();
+const name=$("cn").value.trim(),phone=$("cp").value.trim(),period=$("ct").value,st=stateForCadastro();
 if(!name)throw Error("Informe o nome da pessoa.");
+if(editingAssignmentId){
+await api("update_assignment",{id:editingAssignmentId,person_name:name,phone,period});
+await load();
+editingAssignmentId=null;
+$("cn").value='';$("cp").value='';$("ct").value='morning';
+updateCadastroButton();
+renderCadProgress();
+$("cm").innerHTML='<div class="notice ok">Cadastro atualizado com sucesso.</div>';
+return;
+}
+const sid=$("cs").value;
 if(!sid)throw Error("Selecione uma sessão no resultado da busca.");
 if((st.role==="admin"||st.role==="researcher")&&!$("cr")?.value)throw Error("Selecione o pesquisador responsável.");
 const body={person_name:name,phone,section_id:sid,period};
 if(st.role==="admin"||st.role==="researcher")body.researcher_id=$("cr").value;
 await api("create_assignment",body);
 await load();
-$("cm").innerHTML='<div class="notice ok">Cadastro realizado com sucesso.</div>';
-if(st.role==="admin")render("cadastro");
+$("cn").value='';$("cp").value='';$("csBusca").value='';$("cz").value='';$("ce").value='';$("ct").value='morning';
+const csSel=$("cs");if(csSel)csSel.selectedIndex=-1;
+filterSections();
+renderCadImportedBase();
+renderCadProgress();
+$("cm").innerHTML='<div class="notice ok">Cadastro realizado com sucesso. Pronto para o próximo.</div>';
 }catch(e){$("cm").innerHTML='<div class="notice err">'+esc(e.message)+'</div>'}
 }
 function setores(){let rows=(data.sectors||[]).map(s=>{let loc=data.locations.filter(l=>l.sector_id===s.id),ids=data.sections.filter(x=>loc.some(l=>l.id===x.polling_location_id));return '<tr><td>'+esc(s.name)+'</td><td>'+esc(s.code||'')+'</td><td>'+loc.length+'</td><td>'+ids.length+'</td><td><button class="btn small" onclick="setor(\''+esc(s.id)+'\')">Abrir</button> <button class="btn danger small" onclick="deleteSector(\''+esc(s.id)+'\')">Excluir</button></td></tr>'}).join('');shell('Setores e sessões','Cadastre e gerencie os setores da pesquisa','<div class="grid two"><div class="card"><h2>Novo setor</h2><div id="sm"></div><div class="formgrid"><div class="field"><label>Nome do setor</label><input id="sn" placeholder="Ex.: Setor Norte"></div><div class="field"><label>Código do setor</label><input id="sc" placeholder="Ex.: N01"></div></div><br><button class="btn primary" onclick="createSector()">＋ Adicionar setor</button></div><div class="card"><h2>Setores cadastrados</h2><div class="table"><table><tr><th>Setor</th><th>Código</th><th>Escolas</th><th>Sessões</th><th>Ações</th></tr>'+rows+'</table></div></div></div>','setores')}
 async function createSector(){try{let name=$("sn").value.trim(),code=$("sc").value.trim();if(!name)throw Error("Informe o nome do setor.");await api("create_sector",{name,code});await load();render("setores")}catch(e){$("sm").innerHTML='<div class="notice err">'+esc(e.message)+'</div>'}}
 async function deleteSector(id){if(!confirm("Excluir este setor e os dados vinculados a ele?"))return;try{await api("delete_sector",{id});await load();render("setores")}catch(e){alert(e.message||"Não foi possível excluir o setor.")}}
 function setor(id){let s=data.sectors.find(x=>x.id===id),loc=data.locations.filter(l=>l.sector_id===id),ids=new Set(data.sections.filter(x=>loc.some(l=>l.id===x.polling_location_id)).map(x=>x.id)),rows=data.assignments.filter(a=>ids.has(a.section_id)).map(a=>{let sec=data.sections.find(x=>x.id===a.section_id),l=data.locations.find(x=>x.id===sec?.polling_location_id),r=data.researchers.find(x=>x.id===a.researcher_id);return '<tr><td>'+esc(l?.school_name||'')+'</td><td>'+esc(l?.zone||'')+'</td><td>'+esc(sec?.section||'')+'</td><td>'+esc(a.person_name)+'</td><td>'+esc(a.phone||'')+'</td><td>'+esc(a.period==='morning'?'Manhã':'Tarde')+'</td><td>'+esc(r?.full_name||'')+'</td><td><button class="btn danger small" onclick="deleteAssignment(\''+esc(a.id)+'\')">Excluir</button></td></tr>'}).join('');shell('Setor '+esc(s?.name||''),'Detalhamento do setor','<div class="card"><button class="btn" onclick="render(\'setores\')">← Voltar</button><br><br><div class="table"><table><tr><th>Colégio</th><th>Zona</th><th>Sessão</th><th>Nome</th><th>Telefone</th><th>Período</th><th>Pesquisador</th><th>Ações</th></tr>'+rows+'</table></div></div>','setores')}
-async function deleteAssignment(id){if(!confirm("Excluir este cadastro?"))return;try{await api("delete_assignment",{id});await load();render("setores")}catch(e){alert(e.message||"A exclusão de cadastro ainda não está disponível no backend.")}}
-function relatorios(){let rows=data.assignments.map(a=>{let s=data.sections.find(x=>x.id===a.section_id),l=data.locations.find(x=>x.id===s?.polling_location_id),r=data.researchers.find(x=>x.id===a.researcher_id);return '<tr><td>'+esc(a.person_name)+'</td><td>'+esc(a.phone||'')+'</td><td>'+esc(l?.zone||s?.zone||'')+'</td><td>'+esc(l?.school_name||'')+'</td><td>'+esc(s?.section||'')+'</td><td>'+esc(a.period==='morning'?'Manhã':'Tarde')+'</td><td>'+esc(r?.full_name||'')+'</td><td><button class="btn danger small" onclick="deleteAssignment(\''+esc(a.id)+'\')">Excluir</button></td></tr>'}).join('');shell('Relatórios','Resumo e exportação dos cadastros','<div class="card"><div class="actions" style="justify-content:space-between"><div><h2>Cadastros</h2><p class="muted">Dados organizados por escola, zona, sessão e período.</p></div><button class="btn primary" onclick="csv()">⇩ Baixar CSV</button></div><br><div class="table"><table><tr><th>Nome</th><th>Telefone</th><th>Zona</th><th>Colégio</th><th>Sessão</th><th>Período</th><th>Pesquisador</th><th>Ações</th></tr>'+rows+'</table></div></div>','relatorios')}
-function csv(){let rows=[['Nome','Telefone','Zona','Colégio','Sessão','Período','Pesquisador'],...data.assignments.map(a=>{let s=data.sections.find(x=>x.id===a.section_id),l=data.locations.find(x=>x.id===s?.polling_location_id),r=data.researchers.find(x=>x.id===a.researcher_id);return [a.person_name,a.phone||'',l?.zone||s?.zone||'',l?.school_name||'',s?.section||'',a.period==='morning'?'Manhã':'Tarde',r?.full_name||'']})];let text=rows.map(r=>r.map(x=>'"'+String(x).replaceAll('"','""')+'"').join(';')).join('\n');let a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+text],{type:'text/csv;charset=utf-8'}));a.download='pesquisa-2-0.csv';a.click()}
+async function deleteAssignment(id){if(!confirm("Excluir este cadastro?"))return;try{await api("delete_assignment",{id});await load();render(currentPage||"setores")}catch(e){alert(e.message||"Não foi possível excluir o cadastro.")}}
+function relatorios(){
+const canDelete=access?.role==='admin';
+const bySector={};
+(data.assignments||[]).forEach(a=>{
+const s=data.sections.find(x=>x.id===a.section_id),l=data.locations.find(x=>x.id===s?.polling_location_id);
+const secName=(data.sectors||[]).find(x=>x.id===l?.sector_id)?.name||'(sem setor)';
+(bySector[secName]=bySector[secName]||[]).push({a,s,l});
+});
+const sectorNames=Object.keys(bySector).sort();
+const blocks=sectorNames.map(name=>{
+const items=bySector[name];
+const rowsHtml=items.map(({a,s,l})=>{const r=data.researchers.find(x=>x.id===a.researcher_id);return '<tr><td>'+esc(a.person_name)+'</td><td>'+esc(a.phone||'')+'</td><td>'+esc(l?.zone||s?.zone||'')+'</td><td>'+esc(l?.school_name||'')+'</td><td>'+esc(s?.section||'')+'</td><td>'+esc(a.period==='morning'?'Manhã':'Tarde')+'</td><td>'+esc(r?.full_name||'')+'</td>'+(canDelete?'<td><button class="btn danger small" onclick="deleteAssignment(\''+esc(a.id)+'\')">Excluir</button></td>':'')+'</tr>'}).join('');
+return '<div style="margin-top:14px;padding-top:14px;border-top:1px solid #eee"><h3 style="margin:0 0 8px">Setor: '+esc(name)+' — '+items.length+' cadastro(s)</h3><div class="table"><table><tr><th>Nome</th><th>Telefone</th><th>Zona</th><th>Colégio</th><th>Sessão</th><th>Período</th><th>Pesquisador</th>'+(canDelete?'<th>Ações</th>':'')+'</tr>'+rowsHtml+'</table></div></div>';
+}).join('');
+shell('Relatórios','Resumo e exportação dos cadastros, separados por setor','<div class="card"><div class="actions" style="justify-content:space-between"><div><h2>Cadastros</h2><p class="muted">Separados por setor para não misturar as informações.</p></div><button class="btn primary" onclick="csv()">⇩ Baixar CSV</button></div>'+(blocks||'<div class="notice" style="margin-top:14px">Nenhum cadastro realizado ainda.</div>')+'</div>','relatorios')}
+function csv(){let rows=[['Nome','Telefone','Setor','Zona','Colégio','Sessão','Período','Pesquisador'],...data.assignments.map(a=>{let s=data.sections.find(x=>x.id===a.section_id),l=data.locations.find(x=>x.id===s?.polling_location_id),r=data.researchers.find(x=>x.id===a.researcher_id),setorName=(data.sectors||[]).find(x=>x.id===l?.sector_id)?.name||'';return [a.person_name,a.phone||'',setorName,l?.zone||s?.zone||'',l?.school_name||'',s?.section||'',a.period==='morning'?'Manhã':'Tarde',r?.full_name||'']})];let text=rows.map(r=>r.map(x=>'"'+String(x).replaceAll('"','""')+'"').join(';')).join('\n');let a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+text],{type:'text/csv;charset=utf-8'}));a.download='pesquisa-2-0.csv';a.click()}
 function researcherLink(r){const saved=JSON.parse(localStorage.getItem('p20_researcher_links')||'{}');return r.access_url||saved[r.id]?.url||saved[(r.full_name||'').toLowerCase()+'|'+r.sector_id]?.url||''}
 function linkActions(u,label){if(!u)return '<span class="muted">Link não disponível</span>';return '<div class="actions"><button class="btn small" onclick="copyLink('+JSON.stringify(u)+')">Copiar link</button><a class="btn success small" href="'+wa('Acesso Pesquisa 2.0 — '+label+'\n'+u+'\nSenha inicial: 1234')+'" target="_blank" rel="noopener">WhatsApp</a></div>'}
 async function copyLink(u){try{await navigator.clipboard.writeText(u);alert("Link copiado.")}catch{prompt("Copie o link:",u)}}
 function pesquisadores(){const saved=JSON.parse(localStorage.getItem('p20_researcher_links')||'{}');let rows=(data.researchers||[]).map(r=>{let sec=data.sectors.find(s=>s.id===r.sector_id),u=researcherLink(r);return '<tr><td>'+esc(r.full_name)+'</td><td>'+esc(r.phone||saved[r.id]?.phone||'')+'</td><td>'+esc(sec?.name||'')+'</td><td>'+linkActions(u,'Pesquisador')+'</td><td><button class="btn danger small" onclick="deleteResearcher(\''+esc(r.id)+'\')">Excluir</button></td></tr>'}).join('');shell('Pesquisadores','Acessos individuais por setor','<div class="grid two"><div class="card"><h2>Novo pesquisador</h2><div id="rm"></div><div class="formgrid"><div class="field"><label>Nome</label><input id="rn"></div><div class="field"><label>Telefone</label><input id="rp" inputmode="tel"></div><div class="field"><label>Setor</label><select id="rs">'+data.sectors.map(s=>'<option value="'+esc(s.id)+'">'+esc(s.name)+'</option>').join('')+'</select></div></div><br><button id="crb" class="btn primary" onclick="createR()">Criar acesso de pesquisador</button></div><div class="card"><h2>Pesquisadores cadastrados</h2><div class="table"><table><tr><th>Nome</th><th>Telefone</th><th>Setor</th><th>Link</th><th>Ações</th></tr>'+rows+'</table></div></div></div>','pesquisadores')}
 async function createR(){const b=$("crb"),name=$("rn").value.trim(),phone=$("rp").value.trim(),sector=$("rs").value;if(!name)return $("rm").innerHTML='<div class="notice err">Informe o nome do pesquisador.</div>';if(b)b.disabled=true;try{let j=await api('create_link',{role:'researcher',display_name:name,sector_id:sector,phone});let u=j.url||location.origin+location.pathname+'?access='+encodeURIComponent(j.link_token);let saved=JSON.parse(localStorage.getItem('p20_researcher_links')||'{}');let item={url:u,phone};saved[name.toLowerCase()+'|'+sector]=item;if(j.access?.id)saved[j.access.id]=item;localStorage.setItem('p20_researcher_links',JSON.stringify(saved));$("rm").innerHTML='<div class="notice ok"><b>✓ Acesso criado.</b><br><small>'+esc(u)+'</small><br><br>'+linkActions(u,'Pesquisador')+'</div>';await load();render('pesquisadores')}catch(e){$("rm").innerHTML='<div class="notice err">'+esc(e.message)+'</div>'}finally{if(b)b.disabled=false}}
 async function deleteResearcher(id){if(!confirm("Excluir este pesquisador, revogar o acesso e remover as alocações dele?"))return;try{await api("delete_researcher",{id});await load();render("pesquisadores")}catch(e){alert(e.message||"Não foi possível excluir o pesquisador.")}}
-function diretorioRows(){return data.sectors.map(s=>{let loc=data.locations.filter(l=>l.sector_id===s.id),ids=new Set(data.sections.filter(x=>loc.some(l=>l.id===x.polling_location_id)).map(x=>x.id)),n=data.assignments.filter(a=>ids.has(a.section_id)).length;return '<tr><td>'+esc(s.name)+'</td><td>'+ids.size+'</td><td>'+n+'</td><td><button class="btn small" onclick="setor(\''+esc(s.id)+'\')">Abrir setor</button></td></tr>'}).join('')}
+function diretorioRows(){return data.sectors.map(s=>{let loc=data.locations.filter(l=>l.sector_id===s.id),ids=new Set(data.sections.filter(x=>loc.some(l=>l.id===x.polling_location_id)).map(x=>x.id)),n=data.assignments.filter(a=>ids.has(a.section_id)).length,meta=ids.size*2,pct=meta?Math.min(100,Math.round(n/meta*100)):0;return '<tr><td>'+esc(s.name)+'</td><td>'+ids.size+'</td><td>'+n+'</td><td>'+meta+'</td><td>'+pct+'%</td><td><button class="btn small" onclick="setor(\''+esc(s.id)+'\')">Abrir setor</button></td></tr>'}).join('')}
 function diretoria(){
 const isAdmin=access?.role==='admin';
 const generators=isAdmin
 ?'<div class="card"><h2>Gerador de acesso</h2><p class="muted">A administração possui três tipos de acesso: Administrador de Pesquisa, Diretoria de Pesquisa e Pesquisador.</p></div><div class="grid two"><div class="card"><h2>Administrador de Pesquisa</h2><p class="muted">Gere um link para outra pessoa acessar a administração do sistema.</p><div class="field"><label>Nome do administrador</label><input id="an" placeholder="Nome do administrador"></div><br><button class="btn primary" onclick="createAdminAccess()">Gerar link de Administrador</button><div id="adminAccessResult"></div></div><div class="card"><h2>Diretoria de Pesquisa</h2><p class="muted">Gere um link para a Diretoria acessar o painel consolidado.</p><div class="field"><label>Nome da diretoria</label><input id="dn" value="Diretoria da Pesquisa" placeholder="Nome da diretoria"></div><br><button class="btn primary" onclick="createD()">Gerar link de Diretoria</button><div id="directorAccessResult"></div></div></div><br><div class="card"><h2>Pesquisador</h2><p class="muted">Gere um link individual para um pesquisador, vinculado ao setor.</p><div class="formgrid"><div class="field"><label>Nome do pesquisador</label><input id="gan" placeholder="Nome completo"></div><div class="field"><label>Telefone</label><input id="gap" inputmode="tel" placeholder="Telefone"></div><div class="field"><label>Setor</label><select id="gas">'+data.sectors.map(s=>'<option value="'+esc(s.id)+'">'+esc(s.name)+'</option>').join('')+'</select></div></div><br><button class="btn primary" onclick="createResearcherAccess()">Gerar link de Pesquisador</button><div id="researcherAccessResult"></div></div>'
 :'<div class="card"><h2>Diretoria de Pesquisa</h2><p class="muted">Visão consolidada da operação de campo.</p><div class="notice ok">Este acesso está identificado como <b>Diretoria de Pesquisa</b>.</div></div>';
-shell('Diretoria','Visão consolidada da operação de campo','<div class="grid kpis">'+k('Cadastros',data.assignments.length,'✓')+k('Setores',data.sectors.length,'▦')+k('Escolas',data.locations.length,'⌂')+k('Sessões',data.sections.length,'◉')+'</div><br>'+generators+'<br><div class="card"><h2>Aplicativo por função</h2><p class="muted">O botão Instalar usa a instalação da página externa quando a Diretoria estiver em diretoria.html.</p><div class="actions"><button class="btn" onclick="installApp()">▣ Instalar Diretoria</button></div></div><br><div class="card"><div class="actions" style="justify-content:space-between"><div><h2>Consolidado por setor</h2><p class="muted">Abra para ver escola, zona, sessão, período e pesquisador.</p></div><button class="btn primary" onclick="csv()">⇩ Consolidado CSV</button></div><br><div class="table"><table><tr><th>Setor</th><th>Sessões</th><th>Cadastros</th><th>Detalhes</th></tr>'+diretorioRows()+'</table></div></div>','diretoria')}
+shell('Diretoria','Visão consolidada da operação de campo','<div class="grid kpis">'+k('Cadastros',data.assignments.length,'✓')+k('Setores',data.sectors.length,'▦')+k('Escolas',data.locations.length,'⌂')+k('Sessões',data.sections.length,'◉')+'</div><br>'+generators+'<br><div class="card"><h2>Aplicativo por função</h2><p class="muted">O botão Instalar usa a instalação da página externa quando a Diretoria estiver em diretoria.html.</p><div class="actions"><button class="btn" onclick="installApp()">▣ Instalar Diretoria</button></div></div><br><div class="card"><div class="actions" style="justify-content:space-between"><div><h2>Consolidado por setor</h2><p class="muted">Abra para ver escola, zona, sessão, período e pesquisador.</p></div><button class="btn primary" onclick="csv()">⇩ Consolidado CSV</button></div><br><div class="table"><table><tr><th>Setor</th><th>Sessões</th><th>Cadastros</th><th>Meta</th><th>%</th><th>Detalhes</th></tr>'+diretorioRows()+'</table></div></div>','diretoria')}
 function accessUrlForRole(j,page){
 const token=String(j?.link_token||"");
 if(token)return "https://rinaldomiranda-netizen.github.io/pesquisas2.0/"+page+"?access="+encodeURIComponent(token);
@@ -190,5 +273,5 @@ function logout(){localStorage.removeItem('p20_session');localStorage.removeItem
 window.p20State=()=>({data,access,session,token});
 (function start(){if(token){const prev=localStorage.p20_link_token||'',storedRole=access?.role||'';const roleMismatch=requestedRole&&storedRole&&storedRole!==requestedRole;if(prev!==token||roleMismatch){session='';access=null;localStorage.removeItem('p20_session');localStorage.removeItem('p20_access')}if(session&&access)load().then(()=>{if(requestedRole&&access?.role!==requestedRole)return login();goHome();startAutoRefresh()}).catch(login);else login()}else if(session&&access)load().then(()=>{goHome();startAutoRefresh()}).catch(login);else document.body.innerHTML='<div class="login"><div class="loginbox"><div class="logo">P2</div><h1>Pesquisa 2.0</h1><div class="notice">Abra o link individual de acesso enviado pelo administrador.</div></div></div>'})();
 </script>
-<script>if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js?v=35').catch(()=>{});</script>
+<script>if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js?v=36').catch(()=>{});</script>
 </body></html>
