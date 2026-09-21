@@ -97,13 +97,14 @@ const matchesText=(!session||normalizeSearch(s.section).includes(session))
 &&(!zone||normalizeSearch(l.zone||s.zone).includes(zone))
 &&(!address||normalizeSearch(l.address).includes(address))
 &&(!school||normalizeSearch(l.school_name).includes(school));
-const matchesSector=(!crSel||researcherSector===null)?true:String(l.sector_id||"")===researcherSector;
+const hasResearcher=!!(crSel&&crSel.value);
+const matchesSector=hasResearcher?String(l.sector_id||"")===researcherSector:false;
 return matchesText&&matchesSector;
 });
 sel.innerHTML=filtered.map(({s,l})=>"<option value=\\\""+esc(s.id)+"\\\" data-zona=\\\""+esc(l.zone||s.zone||"")+"\\\" data-escola=\\\""+esc(l.school_name||"")+"\\\" data-sessao=\\\""+esc(s.section||"")+"\\\" data-sector=\\\""+esc(l.sector_id||"")+"\\\" data-regiao=\\\""+esc(l.region||"")+"\\\" data-cidade=\\\""+esc(l.city||"")+"\\\" data-bairro=\\\""+esc(l.neighborhood||"")+"\\\" data-endereco=\\\""+esc(l.address||"")+"\\\">"+esc(s.section)+" — Zona "+esc(l.zone||s.zone||"")+" — "+esc(l.school_name||"")+"</option>").join("");
 if(currentValue&&[...sel.options].some(o=>o.value===currentValue))sel.value=currentValue;
 const hint=sel.parentElement?.querySelector("small.muted");
-if(hint)hint.textContent=filtered.length?(filtered.length+" sessão(ões) encontrada(s) com os filtros informados."):"Nenhuma sessão encontrada com os filtros informados.";
+if(hint)hint.textContent=!hasResearcher?"Selecione o pesquisador responsável para ver os resultados.":(filtered.length?(filtered.length+" sessão(ões) encontrada(s) com os filtros informados."):"Nenhuma sessão encontrada com os filtros informados.");
 }
 function renderImportedBaseTable(rows,title){
 return "<div class=\"card\" style=\"margin-top:16px\"><h2>"+esc(title)+"</h2><p class=\"muted\">"+rows.length+" linha(s)"+(rows[0]?.source_filename?" — arquivo: "+esc(rows[0].source_filename):"")+"</p>"+dynamicImportTable(rows,"",100)+"</div>";
@@ -220,6 +221,10 @@ const sel=$("cs");const o=sel?.selectedOptions?.[0];if(!o)return;
 $("csBusca").value=o.dataset.sessao||"";
 $("cz").value=o.dataset.zona||"";
 $("ce").value=o.dataset.escola||"";
+if($("cg"))$("cg").value=o.dataset.regiao||"";
+if($("cc"))$("cc").value=o.dataset.cidade||"";
+if($("cbairro"))$("cbairro").value=o.dataset.bairro||"";
+if($("cend"))$("cend").value=o.dataset.endereco||"";
 filterSections();
 const selected=[...sel.options].find(x=>x.value===o.value);if(selected)selected.hidden=false;
 }
