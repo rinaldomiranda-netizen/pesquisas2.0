@@ -75,7 +75,7 @@ renderCadProgress();
 }
 function filterSections(){
 const sel=$("cs");if(!sel)return;
-const normalizeSearch=v=>String(v??"").normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").toLowerCase().trim();
+const normalizeSearch=v=>String(v??"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase().trim();
 const session=normalizeSearch($("csBusca")?.value||"");
 const zone=normalizeSearch($("cz")?.value||"");
 const region=normalizeSearch($("cg")?.value||"");
@@ -97,7 +97,7 @@ const matchesText=(!session||normalizeSearch(s.section).includes(session))
 &&(!zone||normalizeSearch(l.zone||s.zone).includes(zone))
 &&(!address||normalizeSearch(l.address).includes(address))
 &&(!school||normalizeSearch(l.school_name).includes(school));
-const matchesSector=!crSel?true:(researcherSector===null?false:String(l.sector_id||"")===researcherSector);
+const matchesSector=(!crSel||researcherSector===null)?true:String(l.sector_id||"")===researcherSector;
 return matchesText&&matchesSector;
 });
 sel.innerHTML=filtered.map(({s,l})=>"<option value=\\\""+esc(s.id)+"\\\" data-zona=\\\""+esc(l.zone||s.zone||"")+"\\\" data-escola=\\\""+esc(l.school_name||"")+"\\\" data-sessao=\\\""+esc(s.section||"")+"\\\" data-sector=\\\""+esc(l.sector_id||"")+"\\\" data-regiao=\\\""+esc(l.region||"")+"\\\" data-cidade=\\\""+esc(l.city||"")+"\\\" data-bairro=\\\""+esc(l.neighborhood||"")+"\\\" data-endereco=\\\""+esc(l.address||"")+"\\\">"+esc(s.section)+" — Zona "+esc(l.zone||s.zone||"")+" — "+esc(l.school_name||"")+"</option>").join("");
