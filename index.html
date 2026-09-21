@@ -86,6 +86,7 @@ const school=normalizeSearch($("ce")?.value||"");
 const crSel=$("cr");
 const researcherSector=(crSel&&crSel.value)?String(crSel.selectedOptions?.[0]?.dataset.sector||""):null;
 const currentValue=sel.value;
+const hasResearcher=!!(crSel&&crSel.value);
 const filtered=(data.sections||[]).map(s=>{
 const l=(data.locations||[]).find(x=>x.id===s.polling_location_id)||{};
 return {s,l};
@@ -97,7 +98,6 @@ const matchesText=(!session||normalizeSearch(s.section).includes(session))
 &&(!zone||normalizeSearch(l.zone||s.zone).includes(zone))
 &&(!address||normalizeSearch(l.address).includes(address))
 &&(!school||normalizeSearch(l.school_name).includes(school));
-const hasResearcher=!!(crSel&&crSel.value);
 const matchesSector=hasResearcher?String(l.sector_id||"")===researcherSector:false;
 return matchesText&&matchesSector;
 });
