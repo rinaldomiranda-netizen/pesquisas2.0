@@ -75,20 +75,41 @@ renderCadProgress();
 }
 function filterSections(){
 const sel=$("cs");if(!sel)return;
-const session=($("csBusca")?.value||"").trim().toLowerCase();
-const zone=($("cz")?.value||"").trim().toLowerCase();
-const region=($("cg")?.value||"").trim().toLowerCase();
-const city=($("cc")?.value||"").trim().toLowerCase();
-const neighborhood=($("cbairro")?.value||"").trim().toLowerCase();
-const address=($("cend")?.value||"").trim().toLowerCase();
-const school=($("ce")?.value||"").trim().toLowerCase();
+const normalizeSearch=v=>String(v??"").normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").toLowerCase().trim();
+const session=normalizeSearch($("csBusca")?.value||"");
+const zone=normalizeSearch($("cz")?.value||"");
+const region=normalizeSearch($("cg")?.value||"");
+const city=normalizeSearch($("cc")?.value||"");
+const neighborhood=normalizeSearch($("cbairro")?.value||"");
+const address=normalizeSearch($("cend")?.value||"");
+const school=normalizeSearch($("ce")?.value||"");
 const crSel=$("cr");
 const researcherSector=(crSel&&crSel.value)?String(crSel.selectedOptions?.[0]?.dataset.sector||""):null;
-[...sel.options].forEach(o=>{
-const matchesText=(!session||String(o.dataset.sessao||"").toLowerCase().includes(session))&&(!region||String(o.dataset.regiao||"").toLowerCase().includes(region))&&(!city||String(o.dataset.cidade||"").toLowerCase().includes(city))&&(!neighborhood||String(o.dataset.bairro||"").toLowerCase().includes(neighborhood))&&(!zone||String(o.dataset.zona||"").toLowerCase().includes(zone))&&(!address||String(o.dataset.endereco||"").toLowerCase().includes(address))&&(!school||String(o.dataset.escola||"").toLowerCase().includes(school));
-const matchesSector=!crSel?true:(researcherSector===null?false:String(o.dataset.sector||"")===researcherSector);
-o.hidden=!(matchesText&&matchesSector);
+const allOptions=[...sel.options].map(o=>({
+value:o.value,
+text:o.textContent,
+sessao:normalizeSearch(o.dataset.sessao),
+zona:normalizeSearch(o.dataset.zona),
+regiao:normalizeSearch(o.dataset.regiao),
+cidade:normalizeSearch(o.dataset.cidade),
+bairro:normalizeSearch(o.dataset.bairro),
+endereco:normalizeSearch(o.dataset.endereco),
+escola:normalizeSearch(o.dataset.escola),
+sector:String(o.dataset.sector||"")
+}));
+const currentValue=sel.value;
+const filtered=allOptions.filter(o=>{
+const matchesText=(!session||o.sessao.includes(session))&&(!region||o.regiao.includes(region))&&(!city||o.cidade.includes(city))&&(!neighborhood||o.bairro.includes(neighborhood))&&(!zone||o.zona.includes(zone))&&(!address||o.endereco.includes(address))&&(!school||o.escola.includes(school));
+const matchesSector=!crSel?true:(researcherSector===null?false:o.sector===researcherSector);
+return matchesText&&matchesSector;
 });
+sel.innerHTML=filtered.map(o=>"<option value=\""+esc(o.value)+"\" data-zona=\""+esc(o.zona)+"\" data-escola=\""+esc(o.escola)+"\" data-sessao=\""+esc(o.sessao)+"\" data-sector=\""+esc(o.sector)+"\" data-regiao=\""+esc(o.regiao)+"\" data-cidade=\""+esc(o.cidade)+"\" data-bairro=\""+esc(o.bairro)+"\" data-endereco=\""+esc(o.endereco)+"\">"+esc(o.text)+"</option>").join("");
+if(currentValue&&[...sel.options].some(o=>o.value===currentValue))sel.value=currentValue;
+const hint=sel.parentElement?.querySelector("small.muted");
+if(hint){
+const base=(access?.role==="admin"||access?.role==="researcher")?"Sessão é obrigatória. ":"Sessão é obrigatória. ";
+hint.textContent=filtered.length?base+filtered.length+" sessão(ões) encontrada(s).":"Nenhuma sessão encontrada com os filtros informados.";
+}
 }
 function renderImportedBaseTable(rows,title){
 return "<div class=\"card\" style=\"margin-top:16px\"><h2>"+esc(title)+"</h2><p class=\"muted\">"+rows.length+" linha(s)"+(rows[0]?.source_filename?" — arquivo: "+esc(rows[0].source_filename):"")+"</p>"+dynamicImportTable(rows,"",100)+"</div>";
